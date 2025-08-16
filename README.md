@@ -38,7 +38,8 @@ The controller learns a value function and an optimal feedback policy that:
 │  │  └─ formation.py        # Formation loss F3 (KDE + L¹ on grid)
 │  ├─ train.py               # Adversarial training loop
 │  └─ simulate.py            # Rollouts & visualization
-├─ main.py                   # Optional entrypoint (calls train/simulate)
+├─ main.py               # Optional entrypoint (calls train/simulate)
+├─ Theoritical_Document(French)
 └─ README.md
 ```
 ## Participants
