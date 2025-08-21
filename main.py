@@ -24,7 +24,6 @@ import torch.optim as optim
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.neighbors import KernelDensity
 from mpl_toolkits.mplot3d import Axes3D  # For 3D plotting
 
 # Set device (use GPU if available)
@@ -480,3 +479,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
