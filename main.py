@@ -2,21 +2,24 @@
 
 
 
-######################################################################
-#               DRONES CONTROL VIA GAN MODEL
-# Participants:
-# Mohamed-Reda Salhi: mohamed-reda.salhi@polytehnique.edu
-# Joseph Combourieu: joseph.combourieu@polytechnique.edu
-# Mohssin Bakraoui : mohssin.bakraoui@polytechnique.edu
-# Andrea Bourelly: andrea.bourelly@polytechnique.edu
-######################################################################
+
+##################################################################################################################################################################################################################
+#                                                                     DRONES CONTROL VIA GAN MODEL
+#                                                       Participants:
+#                                                       Mohamed-Reda Salhi: mohamed-reda.salhi@polytehnique.edu
+#                                                       Joseph Combourieu: joseph.combourieu@polytechnique.edu
+#                                                       Mohssin Bakraoui : mohssin.bakraoui@polytechnique.edu
+#                                                       Andrea Bourelly: andrea.bourelly@polytechnique.edu
+#                                                       In collaboration with MBDA
+##################################################################################################################################################################################################################
 
 
 
 
-######################################################################
-# Block 1: Imports and Global Settings
-######################################################################
+
+##############################################################
+#BLOCK 1: Importations
+##############################################################
 import math as m
 import torch
 import torch.nn as nn
@@ -30,14 +33,7 @@ from mpl_toolkits.mplot3d import Axes3D  # For 3D plotting
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-######################################################################
-# Block 2: Define Basic Building Blocks and Networks
-######################################################################
 class ResBlock(nn.Module):
-    """
-    A residual block that applies a linear transformation, an activation,
-    and adds a weighted skip connection.
-    """
     def __init__(self, in_features, out_features, activation=nn.ReLU(), skip_weight=0.5):
         super(ResBlock, self).__init__()
         self.linear = nn.Linear(in_features, out_features)
@@ -49,10 +45,6 @@ class ResBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    """
-    A simple residual network with an input linear layer,
-    three residual blocks, and an output layer.
-    """
     def __init__(self, input_dim, output_dim, hidden_dim=100, activation=nn.ReLU()):
         super(ResNet, self).__init__()
         self.input_layer = nn.Linear(input_dim, hidden_dim)
@@ -62,7 +54,6 @@ class ResNet(nn.Module):
         self.output_layer = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        # Using tanh activation for the input layer, per your original code.
         x = torch.tanh(self.input_layer(x))
         x = self.resblock1(x)
         x = self.resblock2(x)
@@ -94,93 +85,6 @@ class NTheta(nn.Module):
         input_data = torch.cat([z, t], dim=-1)
         return self.net(input_data)
 
-
-######################################################################
-# Block 3: Boundary Conditions and Helper Functions
-######################################################################
-
-# ----------------------------------------
-# Génération de points en formation de vague
-# ----------------------------------------
-A = 0.1
-
-def generate_wave(n_samples) :
-    k = 2*m.pi/0.5
-    x = torch.linspace(-0.5, 0.5, n_samples)
-    y = A * torch.sin(k * x)
-    z = torch.ones_like(x) * 0
-
-    return torch.stack([x, y, z], dim=1)
-
-# ----------------------------------------
-# Génération de la densité cible (somme de Gaussiennes)
-# ----------------------------------------
-
-variance = 0.003
-
-def generate_density_wave(x) :
-
-    x_centered = x - x.mean(dim=0, keepdim=True)
-    sigma = np.sqrt(variance)
-
-    def density_estimated(pts):
-        diff = pts.unsqueeze(1) - x_centered.unsqueeze(0)  # (M, N, 3)
-        dist2 = (diff ** 2).sum(dim=-1)  # (M, N)
-        gaussians = torch.exp(-dist2 / (2 * sigma**2))  # (M, N)
-        norm_const = torch.tensor(2 * torch.pi * variance, device=device)**(3/2)
-        return gaussians.sum(dim=1) / (x_centered.shape[0] * norm_const)
-
-    return density_estimated
-
-density_real = generate_density_wave(generate_wave(100))
-x_target = torch.tensor([0,1,0])
-
-def density_final(pts) :
-    return density_real(pts - x_target) 
-
-# ----------------------------------------
-# Estimateur de densité Gaussien pour les points générés
-# ----------------------------------------
-
-class GaussianTorch:
-    def __init__(self, data, bandwidth):
-        self.data = data  # (M, 3)
-        self.bandwidth = bandwidth
-        self.length = data.size(0)
-
-    def profile(self, t):
-        return torch.exp(-t)  # Exponentielle classique
-
-    def density(self, xyz):  # xyz: (N, 3)
-        diff = xyz.unsqueeze(1) - self.data.unsqueeze(0)  # (N, M, 3)
-        dist2 = (diff ** 2).sum(dim=-1)  # (N, M)
-        kernel_vals = self.profile(dist2 / (self.bandwidth ** 2))  # (N, M)
-        density = kernel_vals.sum(dim=1) / (torch.sqrt(torch.tensor(2 * torch.pi, device=xyz.device)) * self.bandwidth * self.length)
-        return density  # (N,)
-
-# ----------------------------------------
-# Distance L1 entre deux densités différentiable (sur grille 3D)
-# ----------------------------------------
-
-def distance_L1_torch(p_func, q_func, n_grid, a=-1.0, b=2.0, device=torch.device("cpu")):
-    coords = torch.linspace(a, b, n_grid, device=device)
-    dx = (b - a) / n_grid
-    grid = torch.stack(torch.meshgrid(coords, coords, coords, indexing='ij'), dim=-1)  # (n, n, n, 3)
-    flat_grid = grid.view(-1, 3)  # (n^3, 3)
-
-    p_vals = p_func(flat_grid)  # (n^3,)
-    q_vals = q_func(flat_grid)  # (n^3,)
-
-    return torch.sum(torch.abs(p_vals - q_vals)) * dx ** 3
-
-def g(x):
-    """
-    Terminal function used to enforce the boundary condition on phi.
-    (For example, it can penalize the distance from the origin.)
-    """
-    return torch.norm(x.mean(dim=0) - x_target.to(device))
-
-
 def phi_omega(x, t, N_omega):
     """
     Constructs the value function with boundary condition:
@@ -196,7 +100,111 @@ def G_theta(z, t, N_theta):
     """
     return (1 - t) * z + t * N_theta(z, t)
 
+##############################################################
+#BLOCK 2: Costs
+##############################################################
+'''
+SUB-BLOCK: Formation cost
+'''
+A = 0.1
+#the generate wave function is just a way for us to make a list of positions in the form  of a wave for the generate_density function bu can be changed by just List [N,3]
+#that  has the positions you wish to have
+def generate_wave(n_samples) :
+    '''
+    Creates a list of positons in the form List [N,3]
+    Args:
+        n_samples: int
+    Return:
+        a list of positions in the form of List[[int]] [n_smaples,3]
+    '''
+    k = 2*m.pi/0.5
+    x = torch.linspace(-0.5, 0.5, n_samples)
+    y = A * torch.sin(k * x)
+    z = torch.ones_like(x) * 0
 
+    return torch.stack([x, y, z], dim=1)
+
+
+variance = 0.003
+
+def generate_density(x) :
+    '''
+    Creates a function f that is the sum of normal distributions centered at each vector in x
+    Args:
+        x : List[[int]] [B,3]
+    Returns:
+        the distribution finction of our desired formation
+    '''
+    x_centered = x - x.mean(dim=0, keepdim=True)
+    sigma = np.sqrt(variance)
+
+    def density_estimated(pts):
+        diff = pts.unsqueeze(1) - x_centered.unsqueeze(0)  # (M, N, 3)
+        dist2 = (diff ** 2).sum(dim=-1)  # (M, N)
+        gaussians = torch.exp(-dist2 / (2 * sigma**2))  # (M, N)
+        norm_const = torch.tensor(2 * torch.pi * variance, device=device)**(3/2)
+        return gaussians.sum(dim=1) / (x_centered.shape[0] * norm_const)
+
+    return density_estimated
+
+density_real = generate_density(generate_wave(100))
+
+
+
+def distance_L1_torch(p_func, q_func, n_grid, a=-1.0, b=2.0, device=torch.device("cpu")):
+    '''
+    Compute the L1 norm between two distributions 
+    Args:
+        p_func:function [float] -> float
+        q_func:function [float] -> float
+        n_grid: is the number of grids in the Reimann sum int
+        a:float
+        b:float
+    Return:
+        float
+    '''
+    coords = torch.linspace(a, b, n_grid, device=device)
+    dx = (b - a) / n_grid
+    grid = torch.stack(torch.meshgrid(coords, coords, coords, indexing='ij'), dim=-1)  # (n, n, n, 3)
+    flat_grid = grid.view(-1, 3)  # (n^3, 3)
+
+    p_vals = p_func(flat_grid)  # (n^3,)
+    q_vals = q_func(flat_grid)  # (n^3,)
+
+    return torch.sum(torch.abs(p_vals - q_vals)) * dx ** 3
+
+
+
+def f_formation(x, device=torch.device("cpu")):
+    '''
+    Compute the L1 norm between two distributions 
+    Args:
+        p_func:function [float] -> float
+        q_func:function [float] -> float
+        n_grid: is the number of grids in the Reimann sum int
+        a:float
+        b:float
+    Return:
+        float
+    '''
+    x_centered = x - x.mean(dim=0, keepdim=True)  # (N, 3)
+
+    # Densité estimée à partir de x_centered
+    sigma = np.sqrt(variance)
+    def density_estimated(pts):
+        diff = pts.unsqueeze(1) - x_centered.unsqueeze(0)  # (M, N, 3)
+        dist2 = (diff ** 2).sum(dim=-1)  # (M, N)
+        gaussians = torch.exp(-dist2 / (2 * sigma**2))  # (M, N)
+        norm_const = torch.tensor(2 * torch.pi * variance, device=device)**(3/2)
+        return gaussians.sum(dim=1) / (x_centered.shape[0] * norm_const)
+
+    # Distance L1 entre les deux
+    d = distance_L1_torch(density_real, density_estimated, n_grid=50, device=device)
+    return d
+
+'''
+SUB-BLOCK: Collision Cost
+'''
 def f_collision(x_batch):
     """
     Computes a collision penalty as the mean inverse square of pairwise distances.
@@ -218,57 +226,46 @@ def f_collision(x_batch):
     else :
       return loss_matrix.mean()
 
-def f_obstacle(x, obstacles):
-      cost = 0
-      batch_size = x.size(0)
-      for obstacle in obstacles :
-          if not isinstance(obstacle, torch.Tensor):
-              obstacle_tensor = torch.tensor(obstacle, device=x.device, dtype=x.dtype)
-          else:
-              obstacle_tensor = obstacle
 
-          for i in range(batch_size):
-              # Compute the squared distance to the obstacle.
-              Q = torch.norm(x[i] - obstacle_tensor)
-              if Q < 0.2:
-                  cost += 1.0 / (max(Q-0.1, 0) + 1e-8)   # add a small epsilon to avoid division by zero.
-      return cost / batch_size
-
+'''
+SUB-BLOCK: Obstacle Costs
+'''
+#the list obstacles is the list you can modify to put obstacles however you like here below lies just an example of obstacles that can be configurated
 obstacles=[[(i-1)/2,0.4,(j-5)/10] for i in range(3) for j in range(10)]
-'''
-If you want to modify the positions of the obstacles you have to put them in obstacles as coordinates (x,y,z) 
-'''
 
-# ----------------------------------------
-# the Fonction f_formation(x) differentiable
-# ----------------------------------------
+def f_obstacle(x, obstacles):
+    """
+    Computes a obstacles penalty as the mean inverse  of pairwise distances.
 
-def f_formation(x, device=torch.device("cpu")):
-    # Centrage
-    x_centered = x - x.mean(dim=0, keepdim=True)  # (N, 3)
+    Args:
+        x_batch: Tensor [B, 3]
+        obstacles: Tensor [B,3]
 
-    # Densité estimée à partir de x_centered
-    sigma = np.sqrt(variance)
-    def density_estimated(pts):
-        diff = pts.unsqueeze(1) - x_centered.unsqueeze(0)  # (M, N, 3)
-        dist2 = (diff ** 2).sum(dim=-1)  # (M, N)
-        gaussians = torch.exp(-dist2 / (2 * sigma**2))  # (M, N)
-        norm_const = torch.tensor(2 * torch.pi * variance, device=device)**(3/2)
-        return gaussians.sum(dim=1) / (x_centered.shape[0] * norm_const)
+    Returns:
+        Mean obstacles penalty.
+    """
+    cost = 0
+    batch_size = x.size(0)
+    for obstacle in obstacles :
+        if not isinstance(obstacle, torch.Tensor):
+            obstacle_tensor = torch.tensor(obstacle, device=x.device, dtype=x.dtype)
+        else:
+            obstacle_tensor = obstacle
 
-    # Distance L1 entre les deux
-    d = distance_L1_torch(density_real, density_estimated, n_grid=50, device=device)
-    return d
+        for i in range(batch_size):
+            # Compute the squared distance to the obstacle.
+            Q = torch.norm(x[i] - obstacle_tensor)
+            if Q < 0.2:
+                cost += 1.0 / (max(Q-0.1, 0) + 1e-8)   # add a small epsilon to avoid division by zero.
+    return cost / batch_size
 
 
-######################################################################
-# Block 4: Define Loss Functions for phi and Generator
-######################################################################
 
-# Utilise la méthode de rejection sampling pour générer les points selon une densité
-# Nécessite de précompute la valeur maximale de la densité
-# Dans notre cas: 1/(n*np.sqrt(np.pi*variance))
 
+##############################################################
+#BLOCK 2:  optimization part
+##############################################################
+# this is part very theoritical I advise you to go read the report 
 def sample_from_wave_density(batch_size):
 
     sigma = np.sqrt(variance)
@@ -329,6 +326,16 @@ def compute_loss_phi(N_omega, N_theta, batch_size, T, lambda_reg):
 
     return loss_phi_mean + loss_HJB + f_collision(x)
 
+
+x_target = torch.tensor([0,1,0])
+def g(x):
+    """
+    Terminal function used to enforce the boundary condition on phi.
+    (For example, it can penalize the distance from the origin.)
+    """
+    return torch.norm(x.mean(dim=0) - x_target.to(device))
+
+
 def compute_loss_G(N_omega, N_theta, batch_size, T):
     """
     Computes the loss for the generator network.
@@ -373,9 +380,9 @@ def compute_loss_G(N_omega, N_theta, batch_size, T):
     return target_loss, loss_G_terms.mean() + 500*target_loss + 70*formation_loss + f_obstacle(x, obstacles) + f_collision(x)
 
 
-######################################################################
-# Block 5: Test Function - Plot Trajectories for 3 Drones over 10s
-######################################################################
+
+
+
 def test_wave_trajectories(n, N_theta, total_time=10.0, num_steps=100):
     """
     For three drones initialized at the vertices of an equilateral triangle,
@@ -429,8 +436,7 @@ def test_wave_trajectories(n, N_theta, total_time=10.0, num_steps=100):
 
 
 ######################################################################
-# Block 6: Main Training and Testing Routine
-######################################################################
+
 def main():
     # Hyperparameters (example values; adjust as needed)
  #   print("f_formation:", f_formation.requires_grad)
@@ -456,7 +462,7 @@ def main():
     target = 2
     target = 900000
     epoch = 0
-    while target_loss > 0.1 or cout > 200 :
+    while target > 0.1 or cout > 200 :
         optimizer_phi.zero_grad()
         loss_phi_val = compute_loss_phi(N_omega, N_theta, batch_size, T, lambda_reg)
         loss_phi_val.backward()
@@ -479,4 +485,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+if __name__ == "__main__":
+    main()
+
 
