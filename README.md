@@ -36,8 +36,6 @@ The controller learns a value function and an optimal feedback policy that:
 │  │  ├─ obstacles.py        # Obstacle penalty F1
 │  │  ├─ collisions.py       # Inter-drone penalty F2
 │  │  └─ formation.py        # Formation loss F3 (KDE + L¹ on grid)
-│  ├─ train.py               # Adversarial training loop
-│  └─ simulate.py            # Rollouts & visualization
 ├─ main.py               # Optional entrypoint (calls train/simulate)
 ├─ Theoritical_Document(French)
 └─ README.md
