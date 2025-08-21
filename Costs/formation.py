@@ -1,10 +1,17 @@
 variance = 0.003
+A = 0.1
+
+def generate_wave(n_samples) :
+    k = 2*m.pi/0.5
+    x = torch.linspace(-0.5, 0.5, n_samples)
+    y = A * torch.sin(k * x)
+    z = torch.ones_like(x) * 0
+
+    return torch.stack([x, y, z], dim=1)
 '''
-So here the generate wave density serves simply as an example. you can of course choose the density you desire in the following fashion : 
-you have point (x_i,y_i,z_i) so you sum normale distributions centered on those points and normalize this will create a denity 
-P.S: keep the name "generate_density_wave" for simplicity since the code is built with this as code but  you can change it in each place and it will still be fine 
+So here the generate density is a function 
 '''
-def generate_density_wave(x) :
+def generate_density(x) :
 
     x_centered = x - x.mean(dim=0, keepdim=True)
     sigma = np.sqrt(variance)
@@ -18,7 +25,7 @@ def generate_density_wave(x) :
 
     return density_estimated
 
-density_real = generate_density_wave(generate_wave(100))
+density_real = generate_density(generate_wave(100))
 def distance_L1_torch(p_func, q_func, n_grid, a=-1.0, b=2.0, device=torch.device("cpu")):
     coords = torch.linspace(a, b, n_grid, device=device)
     dx = (b - a) / n_grid
